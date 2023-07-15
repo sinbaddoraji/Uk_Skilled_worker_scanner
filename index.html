@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Search Page</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.1.0/papaparse.min.js"></script>
+    <!-- Add Materialize CSS and JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <style>
+        body {
+            padding: 20px;
+        }
+        
+        table {
+            margin-top: 20px;
+        }
+        
+        .switch label input[type=checkbox]:checked+.lever {
+            background-color: #a5d6a7;
+        }
+        
+        .switch label input[type=checkbox]:checked+.lever:after {
+            background-color: #66bb6a;
+        }
+    </style>
+</head>
+
+<body>
+    <form id="uploadForm" class="center-align">
+        <div class="file-field input-field">
+            <div class="btn">
+                <span>Upload CSV File</span>
+                <input type="file" id="csvFile" name="csvFile" accept=".csv" onchange="uploadFile()">
+            </div>
+            <div class="file-path-wrapper">
+                <input class="file-path validate" type="text">
+            </div>
+        </div>
+    </form>
+
+    <form id="searchForm">
+        <div class="row">
+            <div class="input-field col s6">
+                <input id="searchTerm" name="searchTerm" type="text" class="validate">
+                <label for="searchTerm">Search Term</label>
+            </div>
+            <div class="input-field col s6">
+                <select id="category">
+                    <option value="Organisation Name">Organisation Name</option>
+                    <option value="Town/City">Town/City</option>
+                    <option value="County">County</option>
+                    <option value="Type & Rating">Type & Rating</option>
+                    <option value="Route">Route</option>
+                </select>
+                <label>Search Category</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col s12 m3">
+                <div class="switch">
+                    <label>
+                        Case Sensitive
+                        <input id="caseInsensitive" type="checkbox">
+                        <span class="lever"></span>
+                        Case Insensitive
+                    </label>
+                </div>
+            </div>
+            <div class="col s12 m3">
+                <div class="switch">
+                    <label>
+                        Normal Search
+                        <input id="regex" type="checkbox">
+                        <span class="lever"></span>
+                        Regex Search
+                    </label>
+                </div>
+            </div>
+            <div class="col s12 m3">
+                <div class="switch">
+                    <label>
+                        No Wildcards
+                        <input id="wildcards" type="checkbox">
+                        <span class="lever"></span>
+                        Use Wildcards
+                    </label>
+                </div>
+            </div>
+            <div class="col s12 m3">
+                <div class="switch">
+                    <label>
+                        Exact Match
+                        <input id="contains" type="checkbox">
+                        <span class="lever"></span>
+                        Contains
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: center;">
+            <button class="btn waves-effect waves-light" type="button" onclick="filterData()">Search</button>
+        </div>
+
+    </form>
+
+    <form id="sortForm" class="center-align">
+        <div class="input-field">
+            <select id="sortBy">
+                <option value="Organisation Name">Organisation Name</option>
+                <option value="Town/City">Town/City</option>
+                <option value="County">County</option>
+                <option value="Type & Rating">Type & Rating</option>
+                <option value="Route">Route</option>
+            </select>
+            <label>Sort By</label>
+        </div>
+    </form>
+
+    <table id="results" class="highlight">
+        <thead>
+            <tr>
+                <th>Organisation Name</th>
+                <th>Town/City</th>
+                <th>County</th>
+                <th>Type & Rating</th>
+                <th>Route</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        var data;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var elems = document.querySelectorAll('select');
+            var instances = M.FormSelect.init(elems, {});
+        });
+
+        function uploadFile() {
+            var file = document.getElementById('csvFile').files[0];
+            if (!file) {
+                alert("Please select a file first.");
+                return;
+            }
+
+            var reader = new FileReader();
+
+            reader.onload = function(e) {
+                var csvString = e.target.result;
+                data = Papa.parse(csvString, {
+                    header: true,
+                    dynamicTyping: true
+                }).data;
+                alert("File uploaded successfully.");
+            };
+
+            reader.readAsText(file);
+        }
+
+        function filterData() {
+            if (!data) {
+                alert("Please upload a file first.");
+                return;
+            }
+
+            var searchTerm = document.getElementById('searchTerm').value;
+            var category = document.getElementById('category').value;
+            var caseInsensitive = document.getElementById('caseInsensitive').checked;
+            var regex = document.getElementById('regex').checked;
+            var wildcards = document.getElementById('wildcards').checked;
+            var contains = document.getElementById('contains').checked;
+
+            if (caseInsensitive) {
+                searchTerm = searchTerm.toLowerCase();
+            }
+
+            if (wildcards) {
+                // Replace * and ? with .* and ., respectively, to convert the wildcard to a regex
+                searchTerm = searchTerm.replace(/\*/g, '.*').replace(/\?/g, '.');
+                regex = true;
+            }
+
+            var results = data.filter(function(item) {
+                var value = item[category];
+                if (value === undefined) {
+                    return false;
+                }
+
+                if (caseInsensitive) {
+                    value = value.toLowerCase();
+                }
+
+                if (regex) {
+                    var re = new RegExp(searchTerm);
+                    return re.test(value);
+                } else {
+                    if (contains) {
+                        return value.includes(searchTerm);
+                    } else {
+                        return value === searchTerm;
+                    }
+                }
+            });
+
+            // Sort the results
+            var sortBy = document.getElementById('sortBy').value;
+            results.sort(function(a, b) {
+                if (a[sortBy] < b[sortBy]) {
+                    return -1;
+                }
+                if (a[sortBy] > b[sortBy]) {
+                    return 1;
+                }
+                return 0;
+            });
+
+            var tableBody = document.getElementById('results').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';
+
+            results.forEach(function(row) {
+                var tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td>' + row['Organisation Name'] + '</td>' +
+                    '<td>' + row['Town/City'] + '</td>' +
+                    '<td>' + (row['County'] || '') + '</td>' +
+                    '<td>' + row['Type & Rating'] + '</td>' +
+                    '<td>' + row['Route'] + '</td>';
+                tableBody.appendChild(tr);
+            });
+        }
+    </script>
+
+</body>
+
+</html>
